@@ -29,7 +29,7 @@ class Canvas(QWidget):
     shapeMoved = pyqtSignal()
     drawingPolygon = pyqtSignal(bool)
 
-    CREATE, EDIT = list(range(2))
+    CREATE, EDIT, CREATE_POLY = list(range(3))
 
     epsilon = 11.0
 
@@ -79,8 +79,12 @@ class Canvas(QWidget):
         return self.visible.get(shape, True)
 
     def drawing(self):
-        return self.mode == self.CREATE
+        return (self.mode == self.CREATE) or (self.mode == self.CREATE_POLY)
 
+    #True for boxes, false for polys
+    def drawingBox(self):
+        return self.mode == self.CREATE
+    
     def editing(self):
         return self.mode == self.EDIT
 
@@ -89,6 +93,13 @@ class Canvas(QWidget):
         if not value:  # Create
             self.unHighlight()
             self.deSelectShape()
+        self.prevPoint = QPointF()
+        self.repaint()
+
+    def setPoly(self):
+        self.mode = self.CREATE_POLY
+        self.unHighlight()
+        self.deSelectShape()
         self.prevPoint = QPointF()
         self.repaint()
 
@@ -226,7 +237,7 @@ class Canvas(QWidget):
                 self.overrideCursor(CURSOR_GRAB)
         elif ev.button() == Qt.LeftButton:
             pos = self.transformPos(ev.pos())
-            if self.drawing():
+            if self.drawing() and self.drawingBox():
                 self.handleDrawing(pos)
 
     def endMove(self, copy=False):
@@ -252,19 +263,28 @@ class Canvas(QWidget):
             self.repaint()
 
     def handleDrawing(self, pos):
-        if self.current and self.current.reachMaxPoints() is False:
-            initPos = self.current[0]
-            minX = initPos.x()
-            minY = initPos.y()
-            targetPos = self.line[1]
-            maxX = targetPos.x()
-            maxY = targetPos.y()
-            self.current.addPoint(QPointF(maxX, minY))
-            self.current.addPoint(targetPos)
-            self.current.addPoint(QPointF(minX, maxY))
-            self.finalise()
+        if self.current:
+            if (self.current.reachMaxPoints() is True and self.drawingBox()) or self.current.closingDist(pos):
+                initPos = self.current[0]
+                minX = initPos.x()
+                minY = initPos.y()
+                targetPos = self.line[1]
+                maxX = targetPos.x()
+                maxY = targetPos.y()
+                if self.drawingBox():
+                    self.current.addPoint(QPointF(maxX, minY))
+                    self.current.addPoint(targetPos)
+                    self.current.addPoint(QPointF(minX, maxY))
+                    print(str(len(self.current)))
+                print("!")
+                self.finalise()
+            else:
+                self.current.addPoint(pos)
+                self.line.points = [pos, pos]
+                self.update()
         elif not self.outOfPixmap(pos):
             self.current = Shape()
+            self.current.isBox = self.drawingBox()
             self.current.addPoint(pos)
             self.line.points = [pos, pos]
             self.setHiding()
@@ -322,19 +342,21 @@ class Canvas(QWidget):
 
         shiftPos = pos - point
         shape.moveVertexBy(index, shiftPos)
-
-        lindex = (index + 1) % 4
-        rindex = (index + 3) % 4
-        lshift = None
-        rshift = None
-        if index % 2 == 0:
-            rshift = QPointF(shiftPos.x(), 0)
-            lshift = QPointF(0, shiftPos.y())
-        else:
-            lshift = QPointF(shiftPos.x(), 0)
-            rshift = QPointF(0, shiftPos.y())
-        shape.moveVertexBy(rindex, rshift)
-        shape.moveVertexBy(lindex, lshift)
+        
+        #For squares only
+        if shape.isBox:
+            lindex = (index + 1) % 4
+            rindex = (index + 3) % 4
+            lshift = None
+            rshift = None
+            if index % 2 == 0:
+                rshift = QPointF(shiftPos.x(), 0)
+                lshift = QPointF(0, shiftPos.y())
+            else:
+                lshift = QPointF(shiftPos.x(), 0)
+                rshift = QPointF(0, shiftPos.y())
+            shape.moveVertexBy(rindex, rshift)
+            shape.moveVertexBy(lindex, lshift)
 
     def boundedMoveShape(self, shape, pos):
         if self.outOfPixmap(pos):
@@ -467,10 +489,12 @@ class Canvas(QWidget):
     def finalise(self):
         assert self.current
         if self.current.points[0] == self.current.points[-1]:
-            self.current = None
-            self.drawingPolygon.emit(False)
-            self.update()
-            return
+            print("same point encountered")
+            del self.current.points[-1]#self.current.remove(-1)
+            #self.current = None
+            #self.drawingPolygon.emit(False)
+            #self.update()
+            #return
 
         self.current.close()
         self.shapes.append(self.current)

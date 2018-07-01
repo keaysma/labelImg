@@ -31,6 +31,7 @@ class LabelFile(object):
 
     def savePascalVocFormat(self, filename, shapes, imagePath, imageData,
                             lineColor=None, fillColor=None, databaseSrc=None):
+        print("pascaling")
         imgFolderPath = os.path.dirname(imagePath)
         imgFolderName = os.path.split(imgFolderPath)[-1]
         imgFileName = os.path.basename(imagePath)
@@ -50,14 +51,22 @@ class LabelFile(object):
             label = shape['label']
             # Add Chris
             difficult = int(shape['difficult'])
-            bndbox = LabelFile.convertPoints2BndBox(points)
-            writer.addBndBox(bndbox[0], bndbox[1], bndbox[2], bndbox[3], label, difficult)
+            #bndbox = LabelFile.convertPoints2BndBox(points)
+            blob = []
+            #p_name = 'point'
+            #i = 0
+            for p in points:
+                blob += [[p[0], p[1]]]
+                #blob.update({(p_name+str(i)):[p[0], p[1]]})
+                #i += 1
+            writer.addBndBlob(blob, label, difficult)
 
         writer.save(targetFile=filename)
         return
 
     def saveYoloFormat(self, filename, shapes, imagePath, imageData, classList,
                             lineColor=None, fillColor=None, databaseSrc=None):
+        print("yoloing")
         imgFolderPath = os.path.dirname(imagePath)
         imgFolderName = os.path.split(imgFolderPath)[-1]
         imgFileName = os.path.basename(imagePath)

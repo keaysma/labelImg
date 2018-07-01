@@ -10,7 +10,7 @@ except ImportError:
     from PyQt4.QtCore import *
 
 from libs.lib import distance
-import sys
+import sys, math
 
 DEFAULT_LINE_COLOR = QColor(0, 255, 0, 128)
 DEFAULT_FILL_COLOR = QColor(255, 0, 0, 128)
@@ -37,13 +37,14 @@ class Shape(object):
     point_size = 8
     scale = 1.0
 
-    def __init__(self, label=None, line_color=None, difficult=False, paintLabel=False):
+    def __init__(self, label=None, line_color=None, difficult=False, paintLabel=False, isBox = True):
         self.label = label
         self.points = []
         self.fill = False
         self.selected = False
         self.difficult = difficult
         self.paintLabel = paintLabel
+        self.isBox = isBox
 
         self._highlightIndex = None
         self._highlightMode = self.NEAR_VERTEX
@@ -64,13 +65,26 @@ class Shape(object):
         self._closed = True
 
     def reachMaxPoints(self):
-        if len(self.points) >= 4:
+        if len(self.points) >= 1: #WAS 4 ORIG
             return True
         return False
 
+    def closingDist(self, p):
+        if len(self.points) > 2:
+            print(self.dist(self.points[0], p))
+            if self.dist(self.points[0], p) < 10:
+                print(self.dist(self.points[0], p))
+                return True
+        return False
+
+
+    def dist(self, a, b):
+        return math.sqrt((b.x() - a.x())**2 + (b.y() - a.y())**2);
+
     def addPoint(self, point):
-        if not self.reachMaxPoints():
-            self.points.append(point)
+        #Bamboozled me good -- MAAK
+        #if not self.reachMaxPoints():
+        self.points.append(point)
 
     def popPoint(self):
         if self.points:

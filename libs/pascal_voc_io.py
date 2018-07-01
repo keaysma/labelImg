@@ -80,6 +80,46 @@ class PascalVocWriter:
         bndbox['difficult'] = difficult
         self.boxlist.append(bndbox)
 
+    def addBndBlob(self, blob, name, difficult):
+        bndbox = {}
+        bndbox['points'] = blob
+        bndbox['name'] = name
+        bndbox['difficult'] = difficult
+        self.boxlist.append(bndbox)
+    
+    def appendObjectsB(self, top):
+        for each_object in self.boxlist:
+            object_item = SubElement(top, 'object')
+            name = SubElement(object_item, 'name')
+            try:
+                name.text = unicode(each_object['name'])
+            except NameError:
+                # Py3: NameError: name 'unicode' is not defined
+                name.text = each_object['name']
+            my_type = SubElement(object_item, 'type')
+            my_type = "poly"
+            pose = SubElement(object_item, 'pose')
+            pose.text = "Unspecified"
+            truncated = SubElement(object_item, 'truncated')
+            """
+            if int(each_object['ymax']) == int(self.imgSize[0]) or (int(each_object['ymin'])== 1):
+                truncated.text = "1" # max == height or min
+            elif (int(each_object['xmax'])==int(self.imgSize[1])) or (int(each_object['xmin'])== 1):
+                truncated.text = "1" # max == width or min
+            else:
+                truncated.text = "0" 
+            """
+            difficult = SubElement(object_item, 'difficult')
+            difficult.text = str( bool(each_object['difficult']) & 1 )
+            item_shape = SubElement(object_item, 'shape')
+            for coord in each_object['points']:
+                bndblob = SubElement(item_shape, 'poly2d')
+                xpos = SubElement(bndblob, 'x')
+                xpos.text = str(coord[0])
+                #Repeat for y
+                ypos = SubElement(bndblob, 'y')
+                ypos.text = str(coord[1])
+    
     def appendObjects(self, top):
         for each_object in self.boxlist:
             object_item = SubElement(top, 'object')
@@ -89,6 +129,9 @@ class PascalVocWriter:
             except NameError:
                 # Py3: NameError: name 'unicode' is not defined
                 name.text = each_object['name']
+            #MAAK Addition
+            my_type = SubElement(object_item, 'type')
+            my_type = "poly"
             pose = SubElement(object_item, 'pose')
             pose.text = "Unspecified"
             truncated = SubElement(object_item, 'truncated')
@@ -112,7 +155,7 @@ class PascalVocWriter:
 
     def save(self, targetFile=None):
         root = self.genXML()
-        self.appendObjects(root)
+        self.appendObjectsB(root) #self.appendObjects(root)#blob specific setup
         out_file = None
         if targetFile is None:
             out_file = codecs.open(
@@ -124,8 +167,80 @@ class PascalVocWriter:
         out_file.write(prettifyResult.decode('utf8'))
         out_file.close()
 
-
+#Retrofitted for poly -- MAAK
 class PascalVocReader:
+
+    def __init__(self, filepath):
+        # shapes type:
+        # [labbel, [(x1,y1), (x2,y2), (x3,y3), (x4,y4)], color, color, difficult]
+        self.shapes = []
+        self.filepath = filepath
+        self.verified = False
+        try:
+            self.parseXML()
+        except Exception as e:
+            print("error in parse: " + str(e))
+            pass
+
+    def getShapes(self):
+        return self.shapes
+
+    def addShape(self, label, bndbox, difficult):
+        xmin = int(bndbox.find('xmin').text)
+        ymin = int(bndbox.find('ymin').text)
+        xmax = int(bndbox.find('xmax').text)
+        ymax = int(bndbox.find('ymax').text)
+        points = [(xmin, ymin), (xmax, ymin), (xmax, ymax), (xmin, ymax)]
+        self.shapes.append((label, points, None, None, difficult))
+    
+    #bndblob should be an array of points
+    def addBlob(self, label, bndblob, difficult):
+        points = []
+        for blob in bndblob:
+            xpos = int(float(blob.find('x').text))
+            ypos = int(float(blob.find('y').text))
+            points += [(xpos, ypos)]
+        self.shapes.append((label, points, None, None, difficult))
+
+    def parseXML(self):
+        assert self.filepath.endswith(XML_EXT), "Unsupport file format"
+        parser = etree.XMLParser(encoding=ENCODE_METHOD)
+        xmltree = ElementTree.parse(self.filepath, parser=parser).getroot()
+        filename = xmltree.find('filename').text
+        try:
+            verified = xmltree.attrib['verified']
+            if verified == 'yes':
+                self.verified = True
+        except KeyError:
+            self.verified = False
+
+        for object_iter in xmltree.findall('object'):
+            
+            label = object_iter.find('name').text
+            difficult = False
+            if object_iter.find('difficult') is not None:
+                difficult = bool(int(object_iter.find('difficult').text))
+            
+            object_type = object_iter.find('type')
+            if object_type is None:
+                #treat as a box
+                bndbox = object_iter.find("bndbox")
+                self.addShape(label, bndbox, difficult)
+            elif object_type.text == "box":
+                #treat as a box
+                bndbox = object_iter.find("bndbox")
+                self.addShape(label, bndbox, difficult)
+            elif object_type.text == "poly":
+                #treat as a poly
+                bnd = object_iter.find("shape")
+                bndblob = bnd.findall("poly2d")
+                self.addBlob(label, bndblob, difficult)
+            else:
+                raise TypeError("unknown object")
+        return True
+
+#Original
+class DEPRECIATEDPascalVocReader:
 
     def __init__(self, filepath):
         # shapes type:

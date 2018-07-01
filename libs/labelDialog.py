@@ -46,6 +46,7 @@ class LabelDialog(QDialog):
         self.setLayout(layout)
 
     def validate(self):
+        print("validate")
         try:
             if self.edit.text().trimmed():
                 self.accept()

@@ -253,10 +253,14 @@ class MainWindow(QMainWindow, WindowMixin):
 
         createMode = action('Create\nRectBox', self.setCreateMode,
                             'w', 'new', u'Start drawing Boxs', enabled=False)
+        createMode_POLY = action('Create\nPolyBlob', self.setCreateModePoly,
+                            'q', 'new', u'Start drawing Blobs', enabled=False)
         editMode = action('&Edit\nRectBox', self.setEditMode,
-                          'Ctrl+J', 'edit', u'Move and edit Boxs', enabled=False)
+                          'e', 'edit', u'Move and edit Boxs', enabled=False)
 
         create = action('Create\nRectBox', self.createShape,
+                        'w', 'new', u'Draw a new Box', enabled=False)
+        create_POLY = action('Create\nPolyBlob', self.createShapePoly,
                         'w', 'new', u'Draw a new Box', enabled=False)
         delete = action('Delete\nRectBox', self.deleteSelectedShape,
                         'Delete', 'delete', u'Delete', enabled=False)
@@ -335,7 +339,7 @@ class MainWindow(QMainWindow, WindowMixin):
         # Store actions for further handling.
         self.actions = struct(save=save, save_format=save_format, saveAs=saveAs, open=open, close=close, resetAll = resetAll,
                               lineColor=color1, create=create, delete=delete, edit=edit, copy=copy,
-                              createMode=createMode, editMode=editMode, advancedMode=advancedMode,
+                              createMode=createMode, createMode_POLY=createMode_POLY, editMode=editMode, advancedMode=advancedMode,
                               shapeLineColor=shapeLineColor, shapeFillColor=shapeFillColor,
                               zoom=zoom, zoomIn=zoomIn, zoomOut=zoomOut, zoomOrg=zoomOrg,
                               fitWindow=fitWindow, fitWidth=fitWidth,
@@ -345,11 +349,11 @@ class MainWindow(QMainWindow, WindowMixin):
                               beginner=(), advanced=(),
                               editMenu=(edit, copy, delete,
                                         None, color1),
-                              beginnerContext=(create, edit, copy, delete),
-                              advancedContext=(createMode, editMode, edit, copy,
+                              beginnerContext=(create, create_POLY, edit, copy, delete),
+                              advancedContext=(createMode, createMode_POLY, editMode, edit, copy,
                                                delete, shapeLineColor, shapeFillColor),
                               onLoadActive=(
-                                  close, create, createMode, editMode),
+                                  close, create, createMode, createMode_POLY, editMode),
                               onShapesPresent=(saveAs, hideAll, showAll))
 
         self.menus = struct(
@@ -404,7 +408,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
         self.actions.advanced = (
             open, opendir, changeSavedir, openNextImg, openPrevImg, save, save_format, None,
-            createMode, editMode, None,
+            createMode, createMode_POLY, editMode, None,
             hideAll, showAll)
 
         self.statusBar().showMessage('%s started.' % __appname__)
@@ -510,6 +514,7 @@ class MainWindow(QMainWindow, WindowMixin):
         self.editButton.setVisible(not value)
         if value:
             self.actions.createMode.setEnabled(True)
+            self.actions.createMode_POLY.setEnabled(True)
             self.actions.editMode.setEnabled(False)
             self.dock.setFeatures(self.dock.features() | self.dockFeatures)
         else:
@@ -526,7 +531,7 @@ class MainWindow(QMainWindow, WindowMixin):
         addActions(self.canvas.menus[0], menu)
         self.menus.edit.clear()
         actions = (self.actions.create,) if self.beginner()\
-            else (self.actions.createMode, self.actions.editMode)
+            else (self.actions.createMode, self.actions.createMode_POLY, self.actions.editMode)
         addActions(self.menus.edit, actions + self.actions.editMenu)
 
     def setBeginner(self):
@@ -611,6 +616,11 @@ class MainWindow(QMainWindow, WindowMixin):
         self.canvas.setEditing(False)
         self.actions.create.setEnabled(False)
 
+    def createShapePoly(self):
+        assert self.beginner()
+        self.canvas.setEditing(False)
+        self.actions.create.setEnabled(False)
+    
     def toggleDrawingSensitive(self, drawing=True):
         """In the middle of drawing, toggling between modes should be disabled."""
         self.actions.editMode.setEnabled(not drawing)
@@ -624,15 +634,29 @@ class MainWindow(QMainWindow, WindowMixin):
     def toggleDrawMode(self, edit=True):
         self.canvas.setEditing(edit)
         self.actions.createMode.setEnabled(edit)
+        self.actions.createMode_POLY.setEnabled(not edit)
+        self.actions.editMode.setEnabled(not edit)
+
+    def toggleDrawModePoly(self, edit=True):
+        self.canvas.setPoly()
+        self.actions.createMode.setEnabled(not edit)
+        self.actions.createMode_POLY.setEnabled(edit)
         self.actions.editMode.setEnabled(not edit)
 
     def setCreateMode(self):
         assert self.advanced()
         self.toggleDrawMode(False)
 
+    def setCreateModePoly(self):
+        print("setCreateModePoly")
+        assert self.advanced()
+        self.toggleDrawModePoly(False)
+    
     def setEditMode(self):
         assert self.advanced()
         self.toggleDrawMode(True)
+        #Otherwise suffer the logical failure of MAAK
+        self.actions.createMode_POLY.setEnabled(True)
         self.labelSelectionChanged()
 
     def updateFileMenu(self):
@@ -966,6 +990,7 @@ class MainWindow(QMainWindow, WindowMixin):
                 try:
                     self.labelFile = LabelFile(unicodeFilePath)
                 except LabelFileError as e:
+                    print(str(e))
                     self.errorMessage(u'Error opening file',
                                       (u"<p><b>%s</b></p>"
                                        u"<p>Make sure <i>%s</i> is a valid label file.")
@@ -973,8 +998,10 @@ class MainWindow(QMainWindow, WindowMixin):
                     self.status("Error reading %s" % unicodeFilePath)
                     return False
                 self.imageData = self.labelFile.imageData
-                self.lineColor = QColor(*self.labelFile.lineColor)
-                self.fillColor = QColor(*self.labelFile.fillColor)
+                #MAAK
+                #self.lineColor = QColor(*self.labelFile.lineColor)
+                #self.fillColor = QColor(*self.labelFile.fillColor)
+                print("done loading")
                 self.canvas.verified = self.labelFile.verified
             else:
                 # Load image:
