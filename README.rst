@@ -173,7 +173,7 @@ Steps (PascalVOC)
 1. Build and launch using the instructions above.
 2. Click 'Change default saved annotation folder' in Menu/File
 3. Click 'Open Dir'
-4. Click 'Create RectBox'
+4. Click 'Create RectBox' or 'Create PolyBlob'
 5. Click and release left mouse to select a region to annotate the rect
    box
 6. You can use right mouse to drag the rect box to copy or move it
@@ -225,6 +225,8 @@ Hotkeys
 | Space      | Flag the current image as verified         |
 +------------+--------------------------------------------+
 | w          | Create a rect box                          |
++------------+--------------------------------------------+
+| q          | Create a poly blob                         |
 +------------+--------------------------------------------+
 | d          | Next image                                 |
 +------------+--------------------------------------------+
